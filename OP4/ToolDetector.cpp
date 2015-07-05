@@ -116,6 +116,7 @@ int main(int argc, char** argv)
 	split(M, channel);
 	Mat GreenCH = channel[1];
 	Mat resizedFrame = M.clone();
+	Mat debugFrame ;
 	Mat output2(GreenCH.rows, GreenCH.cols, CV_8UC1, Scalar(0));
 	Rect estimatedRegion;
 	Rect searchWindow;
@@ -180,6 +181,7 @@ int main(int argc, char** argv)
 
 		//currentVideo.set(CV_CAP_PROP_POS_FRAMES, skipFrames++);
 		frameGrabber.resizeFrame(f, percentage, resizedFrame);
+		debugFrame = resizedFrame.clone();
 
 		//resizedFrame = Myresize(f, percentage);
 
@@ -218,15 +220,15 @@ int main(int argc, char** argv)
 					{
 					case SHAFT:
 						shaftPointList.push_back(P);
-						//circle(resizedFrame, Point(j, i), 2, Scalar(255), 1);
+						//circle(debugFrame, Point(j, i), 2, Scalar(255), 1);
 						break;
 					case OPENED_TIP:
 						tipPointList.push_back(P);
-						//	circle(resizedFrame, Point(j, i), 2, cv::Scalar(0, 255, 255), 1);
+						//	circle(debugFrame, Point(j, i), 2, cv::Scalar(0, 255, 255), 1);
 						break;
 					case CLOSED_TIP:
 						tipPointList.push_back(P);
-						//	circle(resizedFrame, Point(j, i), 2, cv::Scalar(0, 255, 0), 1);
+						//	circle(debugFrame, Point(j, i), 2, cv::Scalar(0, 255, 0), 1);
 						//	break;
 
 					}
@@ -260,7 +262,7 @@ int main(int argc, char** argv)
 					clusterCenterPoint.x += tipPointList[i].x;
 					clusterCenterPoint.y += tipPointList[i].y;
 					mostLikelyCluster.push_back(tipPointList[i]);
-					//circle(resizedFrame, Point(tipPointList[i].y,tipPointList[i].x), 2, cv::Scalar(0, 255, 0), 1);
+					//circle(debugFrame, Point(tipPointList[i].y,tipPointList[i].x), 2, cv::Scalar(0, 255, 0), 1);
 				}
 			}
 			if (mostLikelyCluster.size()>0)
@@ -270,7 +272,7 @@ int main(int argc, char** argv)
 			}
 
 			//Rect toolTipRect = cv::fitEllipse(Mat(tipPointList)).boundingRect();
-			//rectangle(resizedFrame, Rect(toolTipRect.y,toolTipRect.x,toolTipRect.width,toolTipRect.height), cv::Scalar(0, 255, 0));
+			//rectangle(debugFrame, Rect(toolTipRect.y,toolTipRect.x,toolTipRect.width,toolTipRect.height), cv::Scalar(0, 255, 0));
 			// Vec4i P2 = RANSAC1 (pn.Locations,pn.Locations.size(),10,pn.Locations.size()/3,200);
 			//Rect ROI((P2[1] + P2[3]) / 2 - rectMargin, (P2[0] + P2[2]) / 2 - rectMargin, rectMargin*2, rectMargin*2);
 			Point roiCenter(max(P2[1], P2[3]), max(P2[0], P2[2]));
@@ -310,16 +312,22 @@ int main(int argc, char** argv)
 				toolPoint = Point((clusterCenterPoint.x + shaftClosestPoint.x) / 2, (clusterCenterPoint.y + shaftClosestPoint.y) / 2);
 				Point refPoint = toolPoint;
 				Mat imagePatch;
-				bool result = trainer.positionBox(resizedFrame, imagePatch, refPoint.y - 10, refPoint.x - 10, refPoint.y + 10, refPoint.x + 10, true);
-				if (!result)
-					break;
-				detectionError += (pow((refPoint.x - toolPoint.x), 2)+ ((refPoint.y - toolPoint.y), 2));
-				evaluationSampleSize++;
-				lastTipPosition = toolPoint;
-				circle(resizedFrame, Point(clusterCenterPoint.y, clusterCenterPoint.x), 2, cv::Scalar(0, 0, 255), 1);
-				circle(resizedFrame, Point(shaftClosestPoint.y, shaftClosestPoint.x), 2, cv::Scalar(255, 0, 0), 1);
-				circle(resizedFrame, Point(toolPoint.y, toolPoint.x), 5, cv::Scalar(0, 255, 0), 1);
-				
+
+				if(EVALUATION)
+				{
+
+					bool result = trainer.positionBox(resizedFrame, imagePatch, refPoint.y - 10, refPoint.x - 10, refPoint.y + 10, refPoint.x + 10, true);
+					if (!result)
+						break;
+					detectionError += (pow((refPoint.x - toolPoint.x), 2)+ ((refPoint.y - toolPoint.y), 2));
+					evaluationSampleSize++;
+					lastTipPosition = toolPoint;
+					
+					circle(debugFrame, Point(clusterCenterPoint.y, clusterCenterPoint.x), 2, cv::Scalar(0, 0, 255), 1);
+					circle(debugFrame, Point(shaftClosestPoint.y, shaftClosestPoint.x), 2, cv::Scalar(255, 0, 0), 1);
+					circle(debugFrame, Point(toolPoint.y, toolPoint.x), 5, cv::Scalar(0, 255, 0), 1);
+					
+				}
 			//Point toolPoint(shaftClosestPoint.x, shaftClosestPoint.y);
 			//Point toolPoint(clusterCenterPoint.x,clusterCenterPoint.y );
 			/*
@@ -339,10 +347,10 @@ int main(int argc, char** argv)
 			
 			}
 			
-			//cv::line(resizedFrame, Point(P2[1], P2[0]), Point(P2[3], P2[2]), Scalar(0, 0, 255), 4);
-			rectangle(resizedFrame, Box, Scalar(0, 0, 255), 3);
-			//rectangle (resizedFrame,R,Scalar(0,0,255),3);
-			//rectangle (resizedFrame,ROI,Scalar(0,0,255),3);
+			//cv::line(debugFrame, Point(P2[1], P2[0]), Point(P2[3], P2[2]), Scalar(0, 0, 255), 4);
+			rectangle(debugFrame, Box, Scalar(0, 0, 255), 3);
+			//rectangle (debugFrame,R,Scalar(0,0,255),3);
+			//rectangle (debugFrame,ROI,Scalar(0,0,255),3);
 			potentialFalsePositive = false;
 
 			
@@ -393,7 +401,8 @@ int main(int argc, char** argv)
 		shaftPointList.clear();
 		tipPointList.clear();
 		
-		imshow("Instrument detection", resizedFrame);
+		//imshow("Instrument detection", resizedFrame);
+		imshow("Instrument detection", debugFrame);
 		waitKey(27);
 		//waitKey(0);
 

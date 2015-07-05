@@ -29,6 +29,8 @@
 #include "opencv2/nonfree/features2d.hpp"
 
 #define TRAINING 0
+#define EVALUATION 1
+
 #define SHAFT 3
 #define CLOSED_TIP 1
 #define OPENED_TIP 2
