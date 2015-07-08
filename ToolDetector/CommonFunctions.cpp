@@ -537,11 +537,74 @@ Mat Myresize(Mat I, int f)
 
 	return ret;
 }
+std::vector<KeyPoint> getShaftCenter(cv::Mat &im, int blobArea)
+{
+	cv::Mat grey;
+	cvtColor(im,grey,CV_RGB2GRAY);
+	cv::Mat thresholded = im.clone();
+	
+	threshold(grey, thresholded, 254, 255, CV_THRESH_BINARY);
+	
+	// Setup SimpleBlobDetector parameters.
+	SimpleBlobDetector::Params params;
+	params.filterByCircularity = false;
+	params.filterByInertia = false;
+	params.filterByColor = false;
 
+	// Change thresholds
+	params.minThreshold = 200;
+	params.maxThreshold = 250;
+
+	//params.filterByColor = true;
+	//params.blobColor = 255;
+
+	// Filter by Area.
+	params.filterByArea = true;
+	params.minArea = blobArea;
+
+
+	// Filter by Circularity
+	//params.filterByCircularity = true;
+	//params.minCircularity = 0;
+	//params.minCircularity = 1;
+
+	// Filter by Convexity
+	params.filterByConvexity = true;
+	params.minConvexity = 0.6;
+	params.maxConvexity = 1;
+
+	// Filter by Inertia
+	params.filterByInertia = true;
+	params.minInertiaRatio = 0;
+	params.maxInertiaRatio = 0.5;
+
+	// Set up the detector with default parameters.
+	SimpleBlobDetector detector(params);
+	
+
+	// Detect blobs.
+	std::vector<KeyPoint> keypoints;
+	
+	detector.detect(thresholded, keypoints);
+
+	// Draw detected blobs as red circles.
+	// DrawMatchesFlags::DRAW_RICH_KEYPOINTS flag ensures the size of the circle corresponds to the size of blob
+	//Mat im_with_keypoints;
+	//drawKeypoints(im, keypoints, im_with_keypoints, Scalar(0, 0, 255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+
+	// Show blobs
+	//imshow("keypoints", im_with_keypoints);
+	//cv::waitKey(0);
+
+	return keypoints;
+}
 std::vector<KeyPoint> getTooltipCenter(cv::Mat &im, int blobArea)
 {
+	cv::Mat grey;
+	cvtColor(im,grey,CV_RGB2GRAY);
 	cv::Mat thresholded = im.clone();
-	threshold(im, thresholded, 254, 255, CV_THRESH_BINARY);
+	
+	threshold(grey, thresholded, 254, 255, CV_THRESH_BINARY);
 	
 	// Setup SimpleBlobDetector parameters.
 	SimpleBlobDetector::Params params;

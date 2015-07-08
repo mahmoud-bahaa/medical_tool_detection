@@ -182,27 +182,56 @@ int r1,r2;
 
 	return L;
 }
-Vec4i lineFit(Vector<Point>& XY, int size, int epsilon, int threshold, int Iterations, float predefinedAngle = 45, float angleRange = 30, float predefinedLength = 20)
+Vec4i lineFit(Vector<Point>& XY,int size,int epsilon, int threshold, int Iterations, float predefinedAngle = 45, float angleRange = 30, float predefinedLength = 20)
 {
-	Vec4i line = RANSAC1(XY, size, epsilon, threshold, Iterations);
-	/*
+	//Vec4i line = RANSAC1(XY, size, epsilon, threshold, Iterations);
+	
+	
 	vector<float> fittedLine;
 	vector<Point> inliers;
 	Point lineCenter(0, 0);
 
 	std::vector<Point> points;
-
+	if(XY.size() == 0)
+	{
+		return 0;
+	}
 	
 	for (int i = 0;i < XY.size();i++) {
 		
 		points.push_back(XY[i]);
 	}
+	int minX = points.at(0).x;
+	int minY = points.at(0).y;
+	int maxX = minX;
+	int maxY = minY;
 	
-	
-	//cv::fitLine(Mat(points), fittedLine, CV_DIST_L12, 0.0, 0.01, 0.01);
+	cv::fitLine(Mat(points), fittedLine, CV_DIST_L12, 0.0, 0.01, 0.01);
 
+	for(int i = 0;i< points.size() ; i++)
+	{
+		if(distToLine(fittedLine, points.at(i)) < threshold)
+		{
+			if(points.at(i).y < minY)
+			{
+				minY = points.at(i).y;
+			}
+			if(points.at(i).x < minX)
+			{
+				minX = points.at(i).x;
+			}
+			if(points.at(i).y > maxY)
+			{
+				maxY = points.at(i).y;
+			}
+			if(points.at(i).x > maxX)
+			{
+				maxX = points.at(i).x;
+			}
+		}
+	}
+	Vec4i line(minX,minY, maxX, maxY);
 	
-	*/
 	return line;
 }
 #endif // !HEADER_H

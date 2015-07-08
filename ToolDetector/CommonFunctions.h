@@ -14,6 +14,7 @@ int find_max(IplImage *img);
 
 Mat getGradient(Mat x);
 Mat getGradientDirection(Mat x);
+std::vector<KeyPoint> getShaftCenter( Mat &im, int blobArea = 50);
 std::vector<KeyPoint> getTooltipCenter( Mat &im, int blobArea = 50);
 
 Mat R_value(IplImage *img);

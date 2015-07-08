@@ -98,7 +98,7 @@ int main(int argc, char** argv)
 {
 	vector<string> trainingVids;
 	//char* fileName = "annotations\\Learning Samples\\video 2.avi";
-	char* testVideoFileName = "annotations\\Learning Samples\\video 1.avi";
+	char* testVideoFileName = "annotations\\Learning Samples\\video 2.avi";
 	string mainDir = "annotations";
 
 	int percentage = 20; // percentage is 20 /100 
@@ -116,7 +116,7 @@ int main(int argc, char** argv)
 	split(M, channel);
 	Mat GreenCH = channel[1];
 	Mat resizedFrame = M.clone();
-	Mat debugFrame ;
+	Mat debugFrame , debugFrameTip, debugFrameShaft;
 	Mat output2(GreenCH.rows, GreenCH.cols, CV_8UC1, Scalar(0));
 	Rect estimatedRegion;
 	Rect searchWindow;
@@ -146,11 +146,13 @@ int main(int argc, char** argv)
 		
 	//////////////////////////////////////////////////////////////////////////
 	double t = (double)getTickCount();
-	int skipFrames = 13500;
-	//int skipFrames = 3000;
+	//int skipFrames = 13500;
+	int skipFrames = 4000;
+	//int skipFrames = 0;
 	//int i = 9207;
 	double avg = 0;
 	int tk = 0;
+	int tipToShaftDist = 30;
 	double detectionError = 0.0;
 	int evaluationSampleSize = 0;
 	Mat f;
@@ -182,10 +184,12 @@ int main(int argc, char** argv)
 		//currentVideo.set(CV_CAP_PROP_POS_FRAMES, skipFrames++);
 		frameGrabber.resizeFrame(f, percentage, resizedFrame);
 		debugFrame = resizedFrame.clone();
-
+		debugFrameTip = resizedFrame.clone();
+		debugFrameShaft = resizedFrame.clone();
+		
 		//resizedFrame = Myresize(f, percentage);
 
-
+			bool invalidAccess = false;
 		
 			Vector<Mat> V = featureExtractor.HoG_integral_images(resizedFrame, bins);
 
@@ -195,9 +199,11 @@ int main(int argc, char** argv)
 					continue;
 				for (int j = Box.x; j < Box.width + Box.x; j += 3)
 				{
-
-					Vector<int> HOGFeatures = featureExtractor.extract(V, i - window_height / 2, j - window_width / 2, window_width, window_height, block_size, stride, cell_size, bins);
-
+					Vector<int> HOGFeatures;
+					
+					HOGFeatures = featureExtractor.extract(V, max(0,i - window_height / 2), max(0,j - window_width / 2), window_width, window_height, block_size, stride, cell_size, bins);
+					
+					
 					for (int w = 0; w < HOGFeatures.size(); w++)
 					{
 						sampleMat2.at<float>(0, w) = HOGFeatures[w];
@@ -220,22 +226,25 @@ int main(int argc, char** argv)
 					{
 					case SHAFT:
 						shaftPointList.push_back(P);
-						//circle(debugFrame, Point(j, i), 2, Scalar(255), 1);
+						circle(debugFrameShaft, Point(j, i), 2, Scalar(255,255,255), 1);
 						break;
 					case OPENED_TIP:
 						tipPointList.push_back(P);
-						circle(debugFrame, Point(j, i), 2, cv::Scalar(255, 255, 255), 1);
+						circle(debugFrameTip, Point(j, i), 2, cv::Scalar(255, 255, 255), 1);
 						break;
 					case CLOSED_TIP:
 						tipPointList.push_back(P);
-						circle(debugFrame, Point(j, i), 2, cv::Scalar(255, 255, 255), 1);
+						circle(debugFrameTip, Point(j, i), 2, cv::Scalar(255, 255, 255), 1);
 						break;
 
 					}
 				}
+				if(invalidAccess)
+					break;
 
 			}
-
+			if(invalidAccess)
+				continue;
 
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			tk++;
@@ -244,24 +253,40 @@ int main(int argc, char** argv)
 				cout << skipFrames << "::" << "SVM finished Testing ..." << t << "s ... rate :" << (double)1 / t << " avg: " << avg / tk << endl;
 
 
-
-			//Fit a line to the shaft using RANSAC
-			Vec4i P2 = lineFit(shaftPointList, shaftPointList.size(), rectMargin * 2, 3, 500, 45.0F, 20.0F);
-			//Use the estiamted line to look for the nearby tip
-			//Try to detect if the tool was opened or closed
-			int tipSampleSize = std::max(tipPointList.size(), tipPointList.size());
-			Point shaftClosestPoint(min(P2[0], P2[2]), min(P2[1], P2[3]));
-
-			Vector<Point> mostLikelyCluster;
-			int initArea = 100;
+			std::vector<KeyPoint> shaftBlobs;
+			Vec4i shaftLine;
+			Point shaftClosestPoint;
 			std::vector<KeyPoint> clusterBlobs ;
 			Point clusterCenterPoint ;
-			while(initArea > 50)
+			
+			shaftBlobs = getShaftCenter(debugFrameShaft,100);
+			for(int l = 0; l < shaftBlobs.size() ; l++)
 			{
-				clusterBlobs = getTooltipCenter(debugFrame,initArea);
+				Vector <Point> filteredShaftPointList;
+				for(int i = 0;i < shaftPointList.size() ; i++)
+				{
+					if(computeRMS(shaftPointList[i],Point(shaftBlobs.at(l).pt.y,shaftBlobs.at(l).pt.x)) < tipToShaftDist)
+					{
+						filteredShaftPointList.push_back(shaftPointList[i]);
+					}
+				}
+				//Fit a line to the shaft using RANSAC
+				shaftLine = lineFit(filteredShaftPointList,  filteredShaftPointList.size(),rectMargin * 2, 3, 500, 45.0F, 20.0F);
+				cv::line(resizedFrame, Point(shaftLine[1], shaftLine[0]), Point(shaftLine[3], shaftLine[2]), Scalar(0, 0, 255), 4);
+
+				//Use the estiamted line to look for the nearby tip
+				//Try to detect if the tool was opened or closed
+				int tipSampleSize = std::max(tipPointList.size(), tipPointList.size());
+				shaftClosestPoint = Point(shaftLine[0],shaftLine[1]);
+
+				Vector<Point> mostLikelyCluster;
+				int initArea = 50;
+				
+				clusterBlobs = getTooltipCenter(debugFrameTip,initArea);
 				if(clusterBlobs.size()  == 0)
 				{
-					initArea -= 5;
+					//initArea -= 5;
+					break;
 				}
 				else if(clusterBlobs.size() == 1)
 				{
@@ -271,6 +296,7 @@ int main(int argc, char** argv)
 				else
 				{
 					double diff  = computeRMS(shaftClosestPoint, Point(clusterBlobs.at(0).pt.y,clusterBlobs.at(0).pt.x));
+					diff = std::min((double)tipToShaftDist,diff);
 					for(int i = 0 ; i < clusterBlobs.size() ; i++)
 					{
 						if(computeRMS(shaftClosestPoint, Point(clusterBlobs.at(i).pt.y,clusterBlobs.at(i).pt.x))<diff)
@@ -279,43 +305,16 @@ int main(int argc, char** argv)
 							diff = computeRMS(shaftClosestPoint, Point(clusterBlobs.at(i).pt.y,clusterBlobs.at(i).pt.x));
 						}
 					}
-
-					break;
 				}
 			}
 			
-			//= getTooltipCenter(debugFrame,100);
-
-			/*
-			Point clusterCenterPoint(0, 0);
-
-			for (int i = 0; i < tipPointList.size(); i++)
-			{
-				double dist = computeRMS(tipPointList[i], shaftClosestPoint);
-				if (dist < 10)
-				{
-					clusterCenterPoint.x += tipPointList[i].x;
-					clusterCenterPoint.y += tipPointList[i].y;
-					mostLikelyCluster.push_back(tipPointList[i]);
-					//circle(debugFrame, Point(tipPointList[i].y,tipPointList[i].x), 2, cv::Scalar(0, 255, 0), 1);
-				}
-			}
-			if (mostLikelyCluster.size()>0)
-			{
-				clusterCenterPoint.x /= mostLikelyCluster.size();
-				clusterCenterPoint.y /= mostLikelyCluster.size();
-			}
-			*/
-			//Rect toolTipRect = cv::fitEllipse(Mat(tipPointList)).boundingRect();
-			//rectangle(debugFrame, Rect(toolTipRect.y,toolTipRect.x,toolTipRect.width,toolTipRect.height), cv::Scalar(0, 255, 0));
-			// Vec4i P2 = RANSAC1 (pn.Locations,pn.Locations.size(),10,pn.Locations.size()/3,200);
-			//Rect ROI((P2[1] + P2[3]) / 2 - rectMargin, (P2[0] + P2[2]) / 2 - rectMargin, rectMargin*2, rectMargin*2);
-			Point roiCenter(max(P2[1], P2[3]), max(P2[0], P2[2]));
+			
+			Point roiCenter(max(shaftLine[1], shaftLine[3]), max(shaftLine[0], shaftLine[2]));
 			Rect ROI(roiCenter.x - rectMargin, roiCenter.y - rectMargin, rectMargin * 1.5, rectMargin * 1.5);
-			//	Rect ROI(min(P2[1], P2[3]) - rectMargin / 2, min(P2[0], P2[2]) - rectMargin / 2, abs(P2[1] - P2[3]) + rectMargin, abs(P2[0] - P2[2]) + rectMargin);
+			//	Rect ROI(min(shaftLine[1], shaftLine[3]) - rectMargin / 2, min(shaftLine[0], shaftLine[2]) - rectMargin / 2, abs(shaftLine[1] - shaftLine[3]) + rectMargin, abs(shaftLine[0] - shaftLine[2]) + rectMargin);
 			//	cluster(shaftPointList, 4, 10, outputClusters, cv::Point(ROI.x, ROI.y), cv::Point(ROI.x + ROI.width, ROI.y + ROI.height));
 
-			if (P2[0] == 0 || computeRMS(shaftClosestPoint, clusterCenterPoint) > 30)
+			if (shaftLine[0] == 0 || clusterBlobs.size() == 0 || shaftBlobs.size() == 0 || computeRMS(shaftClosestPoint, clusterCenterPoint) > tipToShaftDist)
 			{
 				Box = R;
 				tracking = false;
